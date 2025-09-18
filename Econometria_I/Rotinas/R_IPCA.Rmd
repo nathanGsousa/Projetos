@@ -42,6 +42,11 @@ dados <- dados %>%
 
 
 str(dados)
+
+#Transformando em log
+dados <- dados %>%
+  
+
 ```
 
 #Gráficos
