@@ -1,0 +1,79 @@
+---
+title: "Filtro"
+output: html_notebook
+---
+
+
+```{r}
+install.packages(c("writexl", "lubridate"))
+library(readxl)
+library(writexl)
+library(dplyr)
+library(lubridate)
+
+```
+
+
+```{r}
+
+dados <-  read_excel("Série de estatísticas (7).xls")
+
+```
+
+```{r}
+dados_filtrados <- dados %>%
+  mutate(AnoMes = floor_date(Data, "month")) %>%   # cria coluna Ano-Mês
+  group_by(AnoMes) %>%
+  filter(Data == max(Data)) %>%                    # pega a última data de cada mês
+  ungroup() %>%
+  select(-AnoMes)                                  # remove coluna auxiliar (opcional)
+
+```
+
+```{r}
+# Salvando em Excel
+write_xlsx(dados_filtrados, "expectativas_filtradas.xlsx")
+```
+
+
+```{r}
+dados_filtrados <- read_excel("expectativas_filtradas.xlsx")
+# A expectativa de inflação do mês (t) para o mês seguinte (t+1)
+expectativa_t_t1 <- dados_filtrados %>%
+  # Converte a coluna de data para o formato de data
+  mutate(Data = as.Date(Data)) %>%
+  # Transforma o formato largo para o formato longo
+  pivot_longer(
+    cols = fev:jan,
+    names_to = "mes_referencia",
+    values_to = "expectativa_ipca"
+  ) %>%
+  # Cria uma coluna com o mês da data de divulgação
+  mutate(mes_divulgacao = format(Data, "%m")) %>%
+  # Mapeia os nomes dos meses para seus números
+  mutate(
+    mes_divulgacao_numero = match(tolower(substr(Data, 6, 7)), c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")),
+    mes_referencia_numero = match(mes_referencia, c("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"))
+  ) %>%
+  # Filtra a diagonal desejada
+  filter(
+    (mes_divulgacao_numero == 1 & mes_referencia == "fev") |
+    (mes_divulgacao_numero == 2 & mes_referencia == "mar") |
+    (mes_divulgacao_numero == 3 & mes_referencia == "abr") |
+    (mes_divulgacao_numero == 4 & mes_referencia == "mai") |
+    (mes_divulgacao_numero == 5 & mes_referencia == "jun") |
+    (mes_divulgacao_numero == 6 & mes_referencia == "jul") |
+    (mes_divulgacao_numero == 7 & mes_referencia == "ago") |
+    (mes_divulgacao_numero == 8 & mes_referencia == "set") |
+    (mes_divulgacao_numero == 9 & mes_referencia == "out") |
+    (mes_divulgacao_numero == 10 & mes_referencia == "nov") |
+    (mes_divulgacao_numero == 11 & mes_referencia == "dez") |
+    (mes_divulgacao_numero == 12 & mes_referencia == "jan")
+  ) %>%
+  # Seleciona as colunas de interesse
+  select(Data, mes_referencia, expectativa_ipca)
+
+# Exibe o resultado
+print(expectativa_t_t1, n = Inf)
+```
+

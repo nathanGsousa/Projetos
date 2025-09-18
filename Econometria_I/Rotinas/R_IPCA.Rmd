@@ -1,0 +1,199 @@
+---
+title: "Trabalho Econometria"
+output: html_notebook
+---
+
+```{r}
+
+library(readxl)
+library(writexl)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(lmtest)
+library(sandwich)
+library(ggplot2)
+library(scales)
+
+
+```
+
+
+```{r}
+dados <- read_excel("Dados.xls")
+
+```
+
+
+#Organizando tipos de dados
+```{r}
+
+str(dados)
+dados <- dados %>%
+  mutate(
+    # Converter Data de "2012.01" para objeto Date (primeiro dia de cada mês)
+    Data = ym(str_replace(Data, "\\.", "-")),
+    
+    # Converter expectativas de IPCA para numérico
+    ExpIPCA = as.numeric(ExpIPCA)
+  )
+
+
+str(dados)
+```
+
+#Gráficos
+```{r}
+
+# Gráfico comparando IPCA vs Expectativa
+ggplot(dados, aes(x = Data)) +
+  geom_line(aes(y = IPCA, color = "Inflação Observada (IPCA)"), size = 1) +
+  geom_line(aes(y = ExpIPCA, color = "Expectativa de Inflação (Focus)"), size = 1, linetype = "dashed") +
+  scale_color_manual(values = c("Inflação Observada (IPCA)" = "blue",
+                                "Expectativa de Inflação (Focus)" = "red")) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(labels = percent_format(scale = 1)) +
+  labs(title = "Inflação Observada vs. Expectativa de Inflação (Focus)",
+       x = "Ano",
+       y = "Taxa de Inflação (%)",
+       color = "Legenda") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Gráfico do log da taxa de desocupação
+ggplot(dados, aes(x = Data, y = log(Txdesocup))) +
+  geom_line(color = "darkblue", size = 1) +
+  labs(title = "Log da Taxa de Desocupação",
+       x = "Ano",
+       y = "log(Txdesocup)") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Gráfico do log da Selic Over
+ggplot(dados, aes(x = Data, y = log(selicover))) +
+  geom_line(color = "darkred", size = 1) +
+  labs(title = "Log da Taxa Selic Over",
+       x = "Ano",
+       y = "log(Selic Over)") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Gráfico do ICC
+ggplot(dados, aes(x = Data, y = ICC)) +
+  geom_line(color = "darkgreen", size = 1) +
+  labs(title = "Índice de Confiança do Consumidor (ICC)",
+       x = "Ano",
+       y = "ICC") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+```
+
+#Modelo
+```{r}
+modelo <- lm(IPCA ~ log(Txdesocup) + log(selicover) + ExpIPCA + ICC, data = dados)
+
+summary(modelo)
+
+#Gráfico do modelo
+dados$IPCA_Ajustado <- fitted(modelo)
+
+# Gráfico comparando IPCA observado e previsto
+ggplot(dados, aes(x = Data)) +
+  geom_line(aes(y = IPCA, color = "IPCA Real"), size = 1) +
+  geom_line(aes(y = IPCA_Ajustado, color = "IPCA Ajustado"), size = 1, linetype = "dashed") +
+  labs(title = "IPCA: Observado vs Ajustado pelo Modelo",
+       x = "Ano",
+       y = "Inflação (IPCA)") +
+  scale_color_manual(values = c("IPCA Real" = "black", "IPCA Ajustado" = "red")) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank())
+
+```
+
+#Testes
+```{r}
+
+# Teste de Durbin-Watson
+dwtest(modelo)
+
+# Teste de White
+bptest(modelo, ~ log(Txdesocup) + log(selicover) + ExpIPCA + ICC +
+                    I(log(Txdesocup)^2) + I(log(selicover)^2) +
+                    I(ExpIPCA^2) + I(ICC^2), data = dados)
+
+# Teste LM para autocorrelação de primeira ordem
+bgtest(modelo, order = 1)
+```
+
+#Gráfico para residuos
+```{r}
+# Calcular resíduos
+dados$residuos <- residuals(modelo)
+
+# Gráfico resíduos vs ajustados
+ggplot(dados, aes(x = IPCA_Ajustado, y = residuos)) +
+  geom_point(color = "darkblue", alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Resíduos vs Valores Ajustados",
+       x = "IPCA Ajustado",
+       y = "Resíduos") +
+  theme_minimal()
+
+#Histograma dos residuos
+ggplot(dados, aes(x = Data, y = residuos)) +
+  geom_line(color = "darkgreen") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Resíduos ao longo do tempo",
+       x = "Ano",
+       y = "Resíduos") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#Histograma
+ggplot(dados, aes(x = residuos)) +
+  geom_histogram(color = "black", fill = "lightblue", bins = 30) +
+  labs(title = "Distribuição dos Resíduos",
+       x = "Resíduos",
+       y = "Frequência") +
+  theme_minimal()
+
+```
+
+#Previsão
+```{r}
+
+novos_dados <- data.frame(
+  Txdesocup = c(5.8, 5.6, 5.7),   
+  selicover = c(1.1000, 1.2800,	1.1600), 
+  ExpIPCA   = c(0.3500	, 0.2000, 0.0500),
+  ICC       = c(112.9, 108.9, 110.9)
+)
+
+previsoes <- predict(modelo, newdata = novos_dados, interval = "prediction")
+previsoes
+
+resultados <- cbind(novos_dados, previsoes)
+print(resultados)
+
+
+ggplot(resultados, aes(x = 1:nrow(resultados), y = fit)) +
+  geom_line(color = "blue") +
+  geom_point(size = 3, color = "red") +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, fill = "lightblue") +
+  labs(title = "Previsão do IPCA com Intervalo de Confiança",
+       x = "Meses futuros",
+       y = "Inflação prevista (%)") +
+  theme_minimal()
+```
+
