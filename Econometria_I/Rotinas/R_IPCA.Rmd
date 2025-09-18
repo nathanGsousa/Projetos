@@ -5,15 +5,17 @@ output: html_notebook
 
 ```{r}
 
-library(readxl)
-library(writexl)
-library(dplyr)
-library(lubridate)
-library(stringr)
-library(lmtest)
-library(sandwich)
-library(ggplot2)
-library(scales)
+require(readxl)
+require(writexl)
+require(dplyr)
+require(lubridate)
+require(stringr)
+require(lmtest)
+require(sandwich)
+require(ggplot2)
+require(scales)
+require(forecast)
+require(urca)
 
 
 ```
@@ -168,6 +170,9 @@ ggplot(dados, aes(x = residuos)) +
        y = "Frequência") +
   theme_minimal()
 
+# Correlograma dos resíduos
+acf(dados$residuos, main = "Correlograma dos Resíduos")
+
 ```
 
 #Previsão
@@ -195,5 +200,31 @@ ggplot(resultados, aes(x = 1:nrow(resultados), y = fit)) +
        x = "Meses futuros",
        y = "Inflação prevista (%)") +
   theme_minimal()
+
+#Previsão com sinal coerente com o que ocorreu nos 3 meses 
+```
+
+
+#Testes de raiz unitaria
+```{r}
+# Teste Dickey-Fuller aumentado para IPCA
+adf_ipca <- ur.df(dados$IPCA, type = "drift", selectlags = "AIC")
+summary(adf_ipca)
+
+# Teste Dickey-Fuller aumentado para ExpIPCA
+adf_expipca <- ur.df(dados$ExpIPCA, type = "drift", selectlags = "AIC")
+summary(adf_expipca)
+
+# Teste Dickey-Fuller aumentado para log(Txdesocup)
+adf_txdesocup <- ur.df(log(dados$Txdesocup), type = "drift", selectlags = "AIC")
+summary(adf_txdesocup)
+
+# Teste Dickey-Fuller aumentado para log(selicover)
+adf_selicover <- ur.df(log(dados$selicover), type = "drift", selectlags = "AIC")
+summary(adf_selicover)
+
+# Teste Dickey-Fuller aumentado para ICC
+adf_icc <- ur.df(dados$ICC, type = "drift", selectlags = "AIC")
+summary(adf_icc)
 ```
 
