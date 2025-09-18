@@ -15,7 +15,7 @@ Esta pasta contém os trabalhos realizados durante a **atividade de extensão em
 
 ## Como executar os códigos
 
-1. Instale o **R** (veja instruções no [README principal](../README.md)).  
+1. Instale o **R** (veja instruções no [README principal](../../README.md)).  
 2.  Abra os scripts `.Rmd` no **RStudio** ou outra **IDE** de preferência.
 3. Execute os códigos para reproduzir as análises.  
 

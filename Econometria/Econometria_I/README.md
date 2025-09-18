@@ -18,7 +18,7 @@ Aqui estão incluídos:
 
 ## Como executar os códigos
 
-1. Certifique-se de ter o **R** instalado (veja instruções no [README principal](../README.md)).
+1. Certifique-se de ter o **R** instalado (veja instruções no [README principal](../../README.md)).
 2. Abra os scripts `.Rmd` no **RStudio** ou outra **IDE** de preferência.
 3. Execute os códigos para reproduzir os resultados obtidos na disciplina.  
 
