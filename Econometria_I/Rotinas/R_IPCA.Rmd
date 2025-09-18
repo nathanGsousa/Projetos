@@ -204,27 +204,3 @@ ggplot(resultados, aes(x = 1:nrow(resultados), y = fit)) +
 #Previsão com sinal coerente com o que ocorreu nos 3 meses 
 ```
 
-
-#Testes de raiz unitaria
-```{r}
-# Teste Dickey-Fuller aumentado para IPCA
-adf_ipca <- ur.df(dados$IPCA, type = "drift", selectlags = "AIC")
-summary(adf_ipca)
-
-# Teste Dickey-Fuller aumentado para ExpIPCA
-adf_expipca <- ur.df(dados$ExpIPCA, type = "drift", selectlags = "AIC")
-summary(adf_expipca)
-
-# Teste Dickey-Fuller aumentado para log(Txdesocup)
-adf_txdesocup <- ur.df(log(dados$Txdesocup), type = "drift", selectlags = "AIC")
-summary(adf_txdesocup)
-
-# Teste Dickey-Fuller aumentado para log(selicover)
-adf_selicover <- ur.df(log(dados$selicover), type = "drift", selectlags = "AIC")
-summary(adf_selicover)
-
-# Teste Dickey-Fuller aumentado para ICC
-adf_icc <- ur.df(dados$ICC, type = "drift", selectlags = "AIC")
-summary(adf_icc)
-```
-
