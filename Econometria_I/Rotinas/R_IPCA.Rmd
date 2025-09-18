@@ -20,7 +20,7 @@ library(scales)
 
 
 ```{r}
-dados <- read_excel("Dados.xls")
+dados <- read_excel("Projetos/Econometria_I/Trabalho Econometria/Dados")
 
 ```
 
