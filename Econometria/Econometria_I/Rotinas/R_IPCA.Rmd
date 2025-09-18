@@ -16,18 +16,18 @@ require(ggplot2)
 require(scales)
 require(forecast)
 require(urca)
-
+require(tseries)
 
 ```
 
-
+#Importando Dados da tabela Excel
 ```{r}
 dados <- read_excel("Projetos/Econometria_I/Trabalho Econometria/Dados")
 
 ```
 
 
-#Organizando tipos de dados
+#Organizando os tipos de dados
 ```{r}
 
 str(dados)
@@ -49,7 +49,7 @@ dados <- dados %>%
 
 ```
 
-#Gráficos
+#Gráficos para as series
 ```{r}
 
 # Gráfico comparando IPCA vs Expectativa
@@ -103,7 +103,7 @@ ggplot(dados, aes(x = Data, y = ICC)) +
 
 ```
 
-#Modelo
+#Modelo de regressão multipla
 ```{r}
 modelo <- lm(IPCA ~ log(Txdesocup) + log(selicover) + ExpIPCA + ICC, data = dados)
 
@@ -127,7 +127,7 @@ ggplot(dados, aes(x = Data)) +
 
 ```
 
-#Testes
+#Testes para heterocedasticidade e autocorrelação
 ```{r}
 
 # Teste de Durbin-Watson
@@ -207,5 +207,26 @@ ggplot(resultados, aes(x = 1:nrow(resultados), y = fit)) +
   theme_minimal()
 
 #Previsão com sinal coerente com o que ocorreu nos 3 meses 
+```
+
+
+#Testes de raiz unitaria
+```{r}
+
+# Teste Dickey-Fuller aumentado para IPCA
+adf.test(dados$IPCA)
+
+# Teste Dickey-Fuller aumentado para log(selicover)
+adf.test(dados$log_selic)
+
+# Teste Dickey-Fuller aumentado para log(Txdesocup)
+adf.test(dados$log_Txdesocup)
+
+# Teste Dickey-Fuller aumentado para  ExpIPCA
+adf.test(dados$ExpIPCA)
+
+# Teste Dickey-Fuller aumentado para ICC
+adf.test(dados$ICC)
+
 ```
 

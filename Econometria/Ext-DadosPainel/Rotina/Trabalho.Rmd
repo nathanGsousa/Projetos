@@ -1,0 +1,321 @@
+---
+title: 'Trabalho Dados em Painel Extensão: '
+author: "Nathan Gomes"
+date: "`r Sys.Date()`"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+Pacotes necessários
+```{r}
+
+require(ggplot2)
+require(readxl)
+require(plm)
+require(tseries)
+
+```
+
+Carregando os dados 
+```{r}
+
+dados <- read_excel("Projetos/Econometria/Ext-DadosPainel/Dados/dados.xls")
+View(dados)
+
+```
+
+```{r}
+str(dados)
+```
+
+# Introdução
+
+Este estudo tem como objetivo analisar a relação entre o crescimento econômico e a geração de empregos formais, utilizando dados de painel para alguns estados brasileiros do nordeste. Para compreender essa dinâmica complexa, foram selecionadas três variáveis macroeconômicas-chave: o PIB Real, o Saldo de Crédito para Pessoas Jurídicas e a Dívida Líquida dos estados e também sseus efeitos defasado.
+
+A escolha dessas variáveis reflete a hipótese de que a saúde econômica e a política fiscal de um estado são determinantes cruciais para o seu mercado de trabalho. O PIB Real serve como o principal indicador de atividade econômica, mensurando a produção de bens e serviços. Espera-se que um aumento na atividade econômica esteja diretamente associado a uma maior demanda por mão de obra, resultando em um aumento do emprego formal.
+
+Da mesma forma, o Crédito para Pessoas Jurídicas é um componente vital para o crescimento. Ele atua como um catalisador para o investimento, permitindo que empresas financiem expansão, inovação e capital de giro, que são essenciais para a criação de novos postos de trabalho. Por fim, a Dívida Líquida dos estados é incluída para avaliar o impacto da política fiscal e dos governos estaduais na crição de novos empregos. A capacidade de um governo de gerenciar suas finanças pode afetar diretamente o ambiente de negócios e, consequentemente, beneficiar e gerar e sustentar empregos.
+
+Para a análise, foram selecionados seis estados do Nordeste: Bahia, Pernambuco, Rio Grande do Norte, Paraíba, Piauí e Sergipe. A escolha desses estados visa capturar a diversidade econômica da região, incluindo os maiores e menores PIBs, bem como aqueles com um PIB intermediário, permitindo uma análise mais representativa das diferentes dinâmicas econômicas regionais.
+
+## Correlação entre as variáveis
+
+```{r}
+correlacoes_PIB <- by(pdados, pdados$estado, function(x) {
+     cor(x$EMP, x$PIBRm, use = "pairwise.complete.obs")
+})
+
+print("======Emprego e PIBR=======")
+print(correlacoes_PIB)
+
+correlacoes_Divida <- by(pdados, pdados$estado, function(x) {
+     cor(x$EMP, x$DLEM, use = "pairwise.complete.obs")
+})
+
+print("======Emprego e Divida=======")
+print(correlacoes_Divida)
+
+correlacoes_Credito <- by(pdados, pdados$estado, function(x) {
+     cor(x$EMP, x$CRED, use = "pairwise.complete.obs")
+})
+
+print("======Emprego e Credito========")
+print(correlacoes_Credito)
+
+
+```
+### Resultado:
+De modo geral, os resultados de correlação indicam que o aumento do PIB Real, do Crédito e, em alguns casos, da Dívida está associado a um aumento nos Empregos Formais. Essa relação positiva e esperada sugere que o crescimento econômico e a expansão do crédito são, na maioria dos estados, fatores que impulsionam a criação de postos de trabalho.
+
+A Paraíba se destaca como uma exceção importante. As correlações nesse estado mostram que um aumento no PIB e na Dívida está associado a uma diminuição na geração de empregos formais. Esse resultado singular sugere que as dinâmicas econômicas e de mercado de trabalho na Paraíba operam de forma diferente dos outros estados analisados.
+
+É importante notar que a correlação indica apenas uma associação entre as variáveis e é necessario aprofundar a análise e investigar os motivos por trás dessas relações, especialmente na Paraíba.
+
+# Estatísticas descritivas
+```{r}
+
+summary(pdados)
+
+```
+
+## Observando cada série
+
+```{r}
+
+bahia <- dados[1:11, c(1,2,7,9,10,11,12,13,14)]
+
+riogranorte <- dados[12:22, c(1,2,7,9,10,11,12,13,14)]
+
+sergipe <- dados[23:33, c(1,2,7,9,10,11,12,13,14)]
+
+paraiba <- dados[34:44, c(1,2,7,9,10,11,12,13,14)]
+
+pernambuco <- dados[45:55, c(1,2,7,9,10,11,12,13,14)]
+
+piaui <- dados[56:66, c(1,2,7,9,10,11,12,13,14)]
+
+
+```
+
+Dados em painel
+```{r}
+pdados=pdata.frame(dados, index=c("estado","ano"))
+
+head(pdados)
+```
+
+## Gráfico de evolução do Emprego Formal ao longo do tempo
+```{r}
+#Bahia
+plot(EMP ~ ano, data = bahia, type = "b", main = "EMP na Bahia", xlab = "Ano", ylab = "EMP")
+
+#Paraíba
+plot(EMP ~ ano, data = paraiba, type = "b", main = "EMP na Paraíba", xlab = "Ano", ylab = "EMP")
+
+#Pernambuco
+plot(EMP ~ ano, data = pernambuco, type = "b", main = "EMP em Pernambuco", xlab = "Ano", ylab = "EMP")
+
+#Piauí
+plot(EMP ~ ano, data = piaui, type = "b", main = "EMP no Piauí", xlab = "Ano", ylab = "EMP")
+
+#Rio Grande do Norte
+plot(EMP ~ ano, data = riogranorte, type = "b", main = "EMP no Rio Grande do Norte", xlab = "Ano", ylab = "EMP")
+
+#Sergipe
+plot(EMP ~ ano, data = sergipe, type = "b", main = "EMP em Sergipe", xlab = "Ano", ylab = "EMP")
+```
+
+# Modelo de Pooled
+## Descrição:
+Este modelo trata de “empilhar” todas as observações da base de dados, ignorando a estrutura de dados em painel. Desta forma, todas as observações são tratadas como não correlacionadas para os indivíduos, com erros homoscedásticos para com os indivíduos. Desconsidera as dimensões de tempo e espaço combinados, ao mesmo tempo que estima a regressão pelo método dos Mínimos Quadrados Ordinários (MQO) (Gujarati e Porter 2011).
+
+```{r}
+
+reg.pooled=plm(EMP ~ PIBRm + PIBRmlag1 + CRED + CREDlag1 + DLEM + DLEMlag1, 
+               data=pdados, model="pooling")
+
+
+summary(reg.pooled)
+```
+
+## Resultado:
+O coeficiente do PIB Real no período atual indica que variação do PIB no ano, tem impacto positivo nos empregos formais em (0.78279) no ano, com nivel de 10% (p-valor = 0.0873) ,a medidada que o a varição PIB Real do ano anterior, tem impacto negativo nos empregos informais, significativo  a 5% (p-valor = 0.0205), pode indicar alguma forma de ajustes de mercado de trabalho ou realocação.
+
+O coeficiente do Credito no periodo atual nos possibilita inferir que ele aumenta fortemente o emprego, 1 unidade a mais de crédito é em média 8 empregos, com forte evidência estatística (p-valor < 0.00001)
+
+Para a Dívida líquida atual do estado/municípios, ela tem efeito negativo sobre o emprego, ou seja, endividamento público mais alto no período reduz a capacidade de estímulo econômico, limitando geração de empregos. Enquanto que Dívida do período anterior tem efeito positivo no emprego atual, pode indicar que, após um aumento de endividamento em t–1, o governo usa esses recursos (ex.: gastos financiados por dívida) para estimular a economia em t, elevando o emprego.
+
+A estimação da regressão pooled averiguou alta significância estatística entre algumas variáveis dependentes, bem como um valor de R2 e R2 ajustado alto, com um f-statistc que o modelo é significativo (p-valor < 0,00001).
+Este tipo de modelo não faz diferenciação entre as caracteristicas dos estados nas variáveis e nem se a resposta das variáveis explicativas é a mesma ao longo do tempo. Isto faz com que não se saiba se existe heterogeneidade entre os estados para a formação de empregos formais.
+
+
+# Modelo de Efeitos Fixos
+## Descrição:
+O modelo de regressão com efeitos fixos considera, como visto anteriormente, que os valores dos interceptos para cada regressão variam de acordo com o efeito (caracteristica) de cada indivíduo (estados) e que os coeficientes das variáveis independentes são os mesmos para cada estado.
+
+Desta forma, o intercepto da equação é diferente para cada estado, mas o efeito das variáveis independentes é o mesmo sobre a variável dependente. Isto pode indica que existe características especiais em cada empresa influenciando os Empregos Formais.
+
+```{r}
+reg.ef=plm(EMP ~ PIBRm + PIBRmlag1 + CRED + CREDlag1 + DLEM + DLEMlag1, 
+               data=pdados, model="within")
+
+summary(reg.ef)
+```
+
+## Resultado:
+### Interceptos de efeitos fixos entre as observações:
+```{r}
+summary(fixef(reg.ef))
+
+```
+
+Resultado para cada Estado: Os resultados do modelo de efeitos fixos mostram os interceptos específicos para cada estado. Esses interceptos representam o efeito médio de cada estado na variável Emprego Formal (EMP).
+
+Ao analisar a significância estatística de cada intercepto, nenhum dos interceptos específicos dos estados se mostrou estatisticamente significativo. Isso indica que, para este modelo, não há evidências de que os efeitos fixos, ou seja, as características não observadas de cada estado (Cultura, Decisões politicas), sejam relevantes para explicar o nível do EMP.
+Indica que as variáveis incluídas no modelo (PIBRm, PIBRmlag1, CRED, CREDlag1, DLEM, DLEMlag1) já são suficientes para capturar a maior parte da variação de EMP entre os estados ao longo do tempo.
+
+
+# Modelo de efeitos aleatórios 
+## Descrição:
+No modelo de regressão com efeitos aleatórios, os efeitos dos estados são considerados variáveis aleatórias. Desta forma, assume-se que os erros individuais não estão correlacionados entre si e também não estão correlacionados entre aquelas unidades de corte transversal e das séries temporais.
+Ou seja há heterogeneidade individual (entre estados), mas que essa heterogeneidade não está correlacionada com as variáveis explicativas.
+
+```{r}
+reg.ea=plm(EMP ~ PIBRm + PIBRmlag1 + CRED + CREDlag1 + DLEM + DLEMlag1,
+           data=pdados, model="random", 
+           random.method = "walhus")
+summary(reg.ea)
+```
+
+## Resultados:
+O modelo de efeitos aleatórios foi estimado, mas como a variância individual é zero, ele coincide com o pooled OLS. Os resultados confirmam que PIB contemporâneo e crédito afetam positivamente o emprego, enquanto PIB defasado, crédito defasado e dívida corrente reduzem, e dívida defasada aumenta.
+
+# Testes entre modelos
+
+## Efeitos Fixos vs Pooled:
+Comparando o modelo Pooled com a regressão de Efeitos Fixos (within). Para isto utiliza-se o Teste F ou teste F de Chow. A hipótese nula é de que há igualdade nos interceptos e nas inclinações para todos os indivíduos, caracterizando o modelo de dados agrupados (pooled).
+
+  H0: Pooled
+  H1: EF
+
+```{r}
+pFtest(reg.ef,reg.pooled)
+```
+
+### Resultado:
+Não rejeitamos H₀ (p-valor > 0,05), ou seja, não há evidências estatísticas de que existam efeitos individuais significativos.
+
+## Pooled vs Efeitos aléatorio:
+O teste desenvolvido por Breusch e Pagan (1980) verifica se a variância dos efeitos individuais (Var(αᵢ)) é igual a zero.Se for zero não há diferenças entre os indivíduos o modelo Pooled é suficiente, se for diferente de zero há heterogeneidade deve-se usar efeitos aleatórios.
+
+  H0 : Modelo Pooled é suficiente.
+
+  H1 : efeitos aleatórios.
+
+
+```{r}
+plmtest(reg.pooled, type="bp")
+```
+## Resultado:
+O modelo pooled é preferível ao de efeitos aleatórios (p-valor > 0.05 -> Não rejeita H0) (não há evidência estatística de heterogeneidade entre indivíduos).
+
+
+## Teste de hausmam Efeitos Fixos vs Efeitos Aléatorios:
+Efeitos Fixos: controla para características não observadas que podem estar correlacionadas com X.
+
+Efeitos Aleatórios: assume que essas características não observadas são independentes de X, permitindo maior eficiência (menos parâmetros).
+
+  HO: Efeitos aleátorios
+  h1: Efeitos fixos
+
+```{r}
+phtest(reg.ef,reg.ea)
+```
+
+##Resultados:
+Efeitos aleatórios são adequados em relação a fixos.
+
+## Teste de Estacionariedade para as séries em painel
+```{r}
+# Lista das variáveis
+vars <- c("EMP", "PIBRmlag1", "CRED", "CREDlag1", "DLEM", "DLEMlag1")
+
+# Loop para Maddala-Wu
+for(v in vars){
+  cat("\n===== Maddala-Wu para", v, "(exógeno = none) =====\n")
+  print(purtest(pdados[[v]], test = "madwu", exo = "none", lags = 1))
+  
+  cat("\n===== Maddala-Wu para", v, "(exógeno = intercept) =====\n")
+  print(purtest(pdados[[v]], test = "madwu", exo = "intercept", lags = 1))
+  
+  cat("\n===== Maddala-Wu para", v, "(exógeno = trend) =====\n")
+  print(purtest(pdados[[v]], test = "madwu", exo = "trend", lags = 1))
+}
+
+# Loop para IPS
+for(v in vars){
+  cat("\n===== IPS para", v, "(exógeno = intercept) =====\n")
+  print(purtest(pdados[[v]], test = "ips", exo = "intercept", lags = 1))
+  
+  cat("\n===== IPS para", v, "(exógeno = trend) =====\n")
+  print(purtest(pdados[[v]], test = "ips", exo = "trend", lags = 1))
+}
+
+```
+
+## Modelos em diferença
+```{r}
+
+#Modelo pooling
+reg.diffpooled=plm(EMP ~ diff(PIBRm) + diff(PIBRmlag1) + diff(CRED) + diff(CREDlag1) + diff(DLEM) + diff(DLEMlag1), 
+               data=pdados, model="pooling")
+
+summary(reg.diffpooled)
+
+#Modelo Efeito Fixo
+reg.diffef=plm(EMP ~ diff(PIBRm) + diff(PIBRmlag1) + diff(CRED) + diff(CREDlag1) + diff(DLEM) + diff(DLEMlag1), 
+               data=pdados, model="within")
+
+summary(reg.diffef)
+
+#Modelo Efeito Aleatorio
+reg.diffea=plm(EMP ~ diff(PIBRm) + diff(PIBRmlag1) + diff(CRED) + diff(CREDlag1) + diff(DLEM) + diff(DLEMlag1),
+           data=pdados, model="random", 
+           random.method = "walhus")
+summary(reg.diffea)
+
+```
+
+
+# Testes para Modelos em diferença
+
+## Efeitos Fixos vs Pooled
+
+```{r}
+pFtest(reg.diffef,reg.diffpooled)
+```
+
+
+## Pooled vs Efeitos aléatorio
+
+```{r}
+plmtest(reg.diffpooled, type="bp")
+```
+
+
+## Teste de hausmam Efeitos Fixos vs Efeitos Aléatorios
+```{r}
+phtest(reg.diffef,reg.diffea)
+```
+
+
+## Resultado:
+Modelo pooled ainda é o suficiente, porém agora apenas credito e divida publica, são estatisticamente significante, em resumo, o modelo pooled sugere que, ao ignorar as diferenças individuais entre os estados nordestinos de análise, o comportamento do emprego formal é explicado de forma estatisticamente significante principalmente pelas dinâmicas do crédito e da dívida pública. 
+
+Assim para o crédito:  ações que visam expandir o acesso e reduzir o custo do crédito para as empresas tendem a ter um impacto direto e positivo no aumento do emprego formal. Quando as empresas conseguem financiar seus investimentos e operações de forma mais fácil, elas tendem a crescer e contratar mais.
+
+Quanto para a Divida Publica: O controle da dívida pública é crucial para a criação de empregos. Uma dívida crescente pode desestimular o investimento privado (pelo aumento dos juros e da incerteza), prejudicando a geração de vagas formais. Nesse caso, a responsabilidade fiscal seria uma política pró-emprego.
+
+E para o PIB Real: Uma variação positiva do PIB real indica que a economia está produzindo e vendendo mais bens e serviços. Isso acontece porque há um aumento na demanda por parte dos consumidores, de outras empresas (investimento) ou do governo, para atender a essa demanda crescente, as empresas precisam aumentar sua capacidade produtiva. A forma mais direta de fazer isso é utilizando mais mão de obra.
+
+# Obrigado!

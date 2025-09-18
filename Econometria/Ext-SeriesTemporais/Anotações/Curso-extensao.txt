@@ -1,0 +1,117 @@
+Séries temporais em regressão I
+
+Relações univariadas
+
+Introdução:
+
+Para fazer a regressão é necessario saber se a serie é estacionaria ou não (análise).
+
+
+
+Avaliação:
+Artigo:
+
+ou
+
+Relátorio:
+Passa a passo de como fazer uma regressaõ econometrica. Para divulgação
+
+Bib: 
+Econometrics Enders
+Hamilton
+
+Gujarat Cap21
+
+
+Séries temporais:
+
+Definição: Y = f(t)
+
+Elas tem frequencias: Tempo dos dados, mensal, trimestral...
+
+A regra f é descoberta com uma metodologia (descobrindo um modelo) dado ele ser a melhor escolha. Descobrindo projetos estocasticos ou mais, que é o mecanismo gerador da série
+
+
+Movimento caract das series
+
+a)Tendencia secular(T): Movimento persistente em alguma direção a partir de um periodo muito longo no tempo. Mostra um movimento regular
+
+b)Variação sazonais(): Semelhante a ciclicos, porém observado no curto prazo, variações na série no curto prazo
+
+c)Variação Ciclicas(C): Movimentos oscilatorios e aproxidamente regulares no longo prazo
+
+d)Variação aleatorio(I): Fenomenos que não apresentam regularidadades, ocorre esporadicamente e é imprevisivel
+
+
+Previsões Holt-Winters (Artigo selecionado)
+
+Obs: Base para nortear tomadas de decisões 
+
+Séries temporais estacionarias:
+
+seja Yt uma variavel aleatoria
+
+O modelo que determins Yt é aleatorio e estocastico
+
+As propriedades do MQO que determina se o processo de Y é estocastico e estacionaria pode se determinar a regra (f)
+
+Processos estocásticos:
+
+Processos deterministicos: Uma constante exata ou de apenas uma amostra
+
+Série estacionaria: 
+A média e var é constante Cov(Yt, Yt+k) = Cov(Yt, Yt-k) = yk ao longo do tempo
+
+As séries são invariantes ao longo do tempo. No longo prazo
+
+Séries não estacionarias:
+
+Série estacionaria deterministica:
+
+Deterministica: É aquela que Yt=k, uma constante exata dado diferentes amostras
+Com a introdução do termo de erro é estocastica e deterministica
+
+A série não estacionaria tem uma tendencia que pode ser de natureza deterministica
+
+Séries não estacionaria:
+
+
+Séries não estacionaria com tendencia deterministica: Mudança por causa do tempo passar, é uma função do tempo Yt = c + dt + et
+
+Séries não estacionaria e tendencia estocastica: Mudança em torno de média flutuantes.
+
+Yt = Yt-1 + Et (Passeio aleatorio sem constante (ou drift, drift é a constante (Yt = c + Yt-1 + Et))) O coeficiente de Yt-1 = 1.
+
+Sendo assim a série temporal não estacionaria terá uma media que varia ao longo do tempo, ou a variança ou ambas.
+
+
+A forma de estimação depende de como classificar essas serires se estacionarias ou não. A inferencia so tem validades se os residuos da serie forem estacionarios (não autocorrelacionados)
+
+Os pressupostos do MQO garantem a Estacionaridade dos residuos(e) do modelo
+
+Os erros aleatorios tem que ter ruido branco(média constante, variancia constante e não autocorrelacionado).
+Ruido Branco: ut ~ IIDn=N (0, o^2)
+
+Processo AR
+
+Série não estacionria tem raiz unitaria p=1 
+
+Teste de raiz unitaria:
+
+1- Teste de Dickey - Fuller
+
+2- Dickey Fuller Aumentado
+
+3- Phillips - Pearson
+
+4- Dickey - Fuller GLS Saber bibliografia
+
+Três versões para cada:
+1- Nivel:
+2- 
+3-
+
+Os residuos tem que ser estacionarios(ruido branco)
+
+Cointegração:
+

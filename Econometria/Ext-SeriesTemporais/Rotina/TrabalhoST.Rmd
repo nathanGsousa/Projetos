@@ -1,0 +1,301 @@
+---
+title: "R Econometria de Séries Temporais Extensão"
+output: html_notebook
+---
+
+#Pacotes necessarios
+```{r}
+
+require(urca)
+require(dplyr)
+require(ggplot2)
+require(readxl)
+require(tseries)
+
+```
+
+
+#Importando Dados
+
+```{r}
+
+dados <- read_excel("Projetos/Econometria/Ext-SeriesTemporais/Dados/Dados_EXT_Séries_temporais.xlsx")
+
+```
+
+#Verificando tipos e organizando
+```{r}
+str(dados)
+
+dados$Data <- as.Date(dados$Data)
+
+names(dados) <- c("Data", "Cambio", "IPCA", "deflator", "IPCAm", "PIBM", "PIBR" )
+
+
+```
+
+
+#Estatisica Descritiva
+```{r}
+summary(finaldados)
+```
+
+#Criando os logs
+```{r}
+
+dados$log10IPCA <- log10(dados$IPCAm)
+dados$log10_Cambio <- log10(dados$Cambio)
+dados$log10_PIBR <- log10(dados$PIBR)
+
+```
+
+
+
+#Gráficos das séries original e log
+```{r}
+#Nivel
+ggplot(dados, aes(x=Data, y=IPCAm)) + geom_line() + labs(title="IPCA Mensal")
+ggplot(dados, aes(x=Data, y=PIBR)) + geom_line() + labs(title="PIB Real Mensal")
+ggplot(dados, aes(x=Data, y=Cambio)) + geom_line() + labs(title="Câmbio Médio Mensal")
+
+#Log
+ggplot(dados, aes(x=Data, y=log10IPCA)) + geom_line() + labs(title="Log10 IPCA Mensal")
+ggplot(dados, aes(x=Data, y=log10_PIBR)) + geom_line() + labs(title="Log10 PIB Real Mensal")
+ggplot(dados, aes(x=Data, y=log10_Cambio)) + geom_line() + labs(title="Log10 Câmbio Mensal")
+
+```
+
+#Correlação
+```{r}
+#Nivel
+cor(dados$PIBR,dados$Cambio)
+cor(dados$IPCAm, dados$PIBR)
+cor(dados$IPCAm, dados$Cambio)
+
+
+#Logs
+cor(dados$log10IPCA, dados$log10_PIBR)
+cor(dados$log10IPCA, dados$log10_Cambio)
+cor(dados$Log10_Cambio, dados$log10_PIBR)
+
+```
+
+#Gráfico disperssão
+```{r}
+
+
+
+plot(dados$log10IPCA , dados$log10_PIBR)
+plot(dados$log10IPCA , dados$log10_Cambio)
+
+```
+
+#Teste de Estacionariedade
+```{r}
+#Dickey-Fuller
+#Original
+#Nivel
+adf.test(dados$IPCA_m_ind)
+adf.test(dados$Tx_Desocup)
+adf.test(dados$Cambio)
+
+#Log
+adf.test(dados$log10IPCA)
+adf.test(dados$log10Tx_Desocup)
+adf.test(dados$log10_Cambio)
+
+#Phillps-Pearson
+#"Z-tau" → versão t (teste de raiz unitária, mais comum)
+#model
+#"constant" → inclui intercepto (drift)
+#"trend" → inclui tendência + intercepto
+#"none" → sem determinísticos
+#lags
+#"short" → defasagem curta
+#"long" → defasagem longa
+
+ipca_m_ind <- dados$IPCA_m_ind
+Tx_Desocup <- dados$Tx_Desocup
+Cambio <- dados$Cambio
+
+log10IPCA <- dados$log10IPCA
+log10Tx_Desocup <- dados$log10Tx_Desocup
+log10_Cambio <- dados$log10_Cambio
+
+rodar_pp <- function(serie, nome){
+  cat("\n====================================\n")
+  cat(" Teste Phillips-Perron para:", nome, "\n")
+  cat("====================================\n")
+  
+  # sem intercepto (usando tseries)
+  pp_none <- pp.test(serie, alternative = "stationary")
+  cat("\n--- Sem intercepto (tseries::pp.test) ---\n")
+  print(pp_none)
+  
+  # com intercepto
+  pp_const <- ur.pp(serie, type = "Z-tau", model = "constant", lags = NULL)
+  cat("\n--- Com intercepto ---\n")
+  print(summary(pp_const))
+  
+  # intercepto + tendência
+  pp_trend <- ur.pp(serie, type = "Z-tau", model = "trend", lags = NULL)
+  cat("\n--- Com intercepto e tendência ---\n")
+  print(summary(pp_trend))
+}
+
+#Rodar para todas as séries
+rodar_pp(ipca_m_ind, "IPCA_m_ind")
+rodar_pp(Tx_Desocup, "Tx_Desocup")
+rodar_pp(Cambio, "Cambio")
+
+help(ur)
+
+
+rodar_pp(log10IPCA, "log10IPCA")
+rodar_pp(log10Tx_Desocup, "log10Tx_Desocup")
+rodar_pp(log10_Cambio, "log10_Cambio")
+```
+
+#Organizando variaveis
+##Adicinando lag de 1 periodo com as séries originais e em log
+```{r}
+dados$IPCA_lag1 <- dplyr::lag(dados$IPCA_m, 1)
+dados$Cambio_lag1 <- dplyr::lag(dados$Cambio, 1)
+dados$Tx_Desocup_lag1 <- dplyr::lag(dados$Tx_Desocup, 1)
+dados$IPCA_m_ind_lag1 <- dplyr :: lag(dados$IPCA_m_ind, 1)
+
+dados$log10IPCA_lag1 <- dplyr::lag(dados$log10IPCA, 1)
+dados$log10_Cambio_lag1 <- dplyr::lag(dados$log10_Cambio, 1)
+dados$log10Tx_Desocup_lag1 <- dplyr::lag(dados$log10Tx_Desocup, 1)
+
+
+
+```
+
+#Primeiras Diferenças
+```{r}
+#Diferença do original
+finaldados$D_Cambio <- c(NA, diff(finaldados$Cambio))
+dados$D_Tx_Desocup <- c(NA, diff(dados$Tx_Desocup))
+
+#Diferenças dos log
+dados$D_log10Tx_Desocup <- c(NA, diff(dados$log10Tx_Desocup))
+dados$D_log10_Cambio <- c(NA, diff(dados$log10_Cambio))
+finaldados$D_PIBR <- c(NA, diff(finaldados$PIBR))
+
+```
+
+
+```{r}
+cor(finaldados$D_PIBR[-1], finaldados$D_Cambio[-1])
+```
+
+
+#Teste de Estacionariedade para as primeiras diferenças
+```{r}
+#Diff
+dados_modelo <- modelo[-1,]
+adf.test(dados_modelo$D_Cambio)
+adf.test(dados_modelo$D_Tx_Desocup)
+
+```
+
+#Lag das Diferenças
+```{r}
+dados$D_Cambio_lag1 <- dplyr::lag(dados$D_Cambio, 1)
+dados$D_Tx_Desocup_lag1 <- dplyr::lag(dados$D_Tx_Desocup, 1)
+
+dados$D_log10_Cambio_lag1 <- dplyr::lag(dados$D_log10_Cambio, 1)
+dados$D_log10Tx_Desocup_lag1 <- dplyr::lag(dados$D_log10Tx_Desocup, 1)
+
+```
+
+
+#Modelos
+##Regressão Linear
+```{r}
+dados_modelo <- dados[-1,]
+
+
+modelo_linear <- lm(log10IPCA ~ D_log10Tx_Desocup + D_log10_Cambio, data = dados_modelo)
+
+summary(modelo_linear)
+
+```
+
+##Regressão com lag
+
+```{r}
+modelo_lag <- lm(log10IPCA ~ log10Tx_Desocup_lag1 + log10_Cambio_lag1 + log10IPCA_lag1, data = dados_modelo)
+
+summary(modelo_lag)
+
+```
+
+##Regressão com Diferença e Lag
+
+```{r}
+modelo_test <- lm(log10IPCA ~ log10IPCA_lag1 + log10Tx_Desocup_lag1 + log10_Cambio_lag1 + D_log10_Cambio +  D_log10Tx_Desocup, data = dados_modelo )
+
+summary(modelo_test)
+
+```
+
+##Modelo final log
+
+```{r}
+
+modelo <- lm(log10IPCA ~ log10IPCA_lag1 + log10Tx_Desocup + log10Tx_Desocup_lag1 + log10_Cambio + log10_Cambio_lag1, data = dados_modelo)
+
+summary(modelo)
+
+```
+
+##Modelo final
+
+```{r}
+
+modelo_nivel <- lm(IPCA_m_ind ~ IPCA_m_ind_lag1 + Tx_Desocup + Tx_Desocup_lag1 + Cambio + Cambio_lag1, data = dados_modelo)
+
+summary(modelo_nivel)
+
+```
+
+##Modelo Final com difernças
+
+```{r}
+
+dados$D_Cambio_lag3 <- dplyr::lag(dados$D_Cambio, 3)
+
+
+dados_p_diff <- dados[-2,]
+
+modelo_dif <- lm(IPCA_m_ind ~ IPCA_m_ind_lag1 + D_Tx_Desocup + D_Tx_Desocup_lag1 + D_Cambio + D_Cambio_lag1, data = dados_p_diff)
+
+summary(modelo_dif)
+```
+
+#
+
+```{r}
+
+require(tseries)
+require(lmtest)
+
+# Teste Breusch-Godfrey com 1 defasagem
+bgtest(modelo_nivel, order = 1)
+
+
+# Breusch-Pagan
+bptest(modelo_nivel)
+
+
+# Extrair resíduos
+res <- residuals(modelo_nivel)
+
+# Teste Jarque-Bera
+jarque.bera.test(res)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
