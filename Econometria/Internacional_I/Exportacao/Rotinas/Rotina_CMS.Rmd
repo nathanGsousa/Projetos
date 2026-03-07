@@ -1,0 +1,91 @@
+---
+title: "Artigo Internacional I Unidade II"
+output: html_notebook
+---
+
+#Bibliotecas necessarias
+```{r}
+setwd("C:/Users/Nathan/Home/Projetos/Econometria/Internacional_I/Exportacao")
+
+require(dplyr)
+require(tidyr)
+require(readr)
+
+```
+
+#Lendo os arquivos csvs com os dados do Brasil e Nordeste
+```{r}
+
+cms <- read.csv("../Dados/Dados_exportacao/Dados_consolidados.csv",
+                  header = TRUE, sep = ",")
+
+cms_ne <- read.csv("../Dados/Dados_exportacao/Dados_consolidados_ne.csv",
+                  header = TRUE, sep = ",")
+
+
+```
+
+#Transformando as linhas em colunas
+```{r}
+
+cms_periodos <- cms %>%
+  pivot_wider(
+    names_from = periodo,
+    values_from = valor_fob,
+    values_fill = 0
+  )
+
+cms_periodos_ne <- cms_ne %>%
+  pivot_wider(
+    names_from = periodo,
+    values_from = valor_fob,
+    values_fill = 0
+  )
+
+```
+
+#Variações entre os periodos
+##Periodo 1 = 2010-2014 Periodo 2 = 2015-2019 Periodo 3 = 2020-2025
+```{r}
+
+cms_periodos <- cms_periodos %>%
+  mutate(
+    delta_12 = P2 - P1,
+    delta_23 = P3 - P2
+  )
+
+cms_periodos_ne <- cms_periodos_ne %>%
+  mutate(
+    delta_12 = P2 - P1,
+    delta_23 = P3 - P2
+  )
+
+
+```
+
+```{r}
+
+crescimento_ne <- cms_periodos_ne %>%
+  group_by(secao, co_pais) %>%
+  summarise(
+    X1 = sum(P1),
+    X2 = sum(P2),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    g_kj = ifelse(X1 == 0, 0, (X2 - X1)/X1)
+  )
+
+```
+
+```{r}
+
+cms_final <- cms_periodos %>%
+  left_join(crescimento_ne, by = c("secao", "co_pais")) %>%
+  mutate(
+    efeito_estrutural = P1 * g_kj,
+    efeito_competitivo = delta_12 - efeito_estrutural
+  )
+
+```
+
