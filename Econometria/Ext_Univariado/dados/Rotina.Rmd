@@ -1,0 +1,1678 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+# Exemplo dados do IPCA 
+
+###### O Índice Nacional de Preços ao Consumidor Amplo (IPCA) mede a inflação de um conjunto de bens e serviços comercializados no varejo, referentes ao consumo pessoal das famílias, cujo rendimento varia entre 1 e 40 salários mínimos, visando uma cobertura de 90 % das famílias pertencentes as áreas urbanas de abrangência do Sistema Nacional de Índices de Preços ao Consumidor (SNIPC), qualquer que seja a fonte de rendimentos. É calculado a partir dos resultados dos índices regionais, utilizando-se a média aritmética ponderada e cuja a variável de ponderação é o Rendimento Familiar Monetário Disponível, tendo como fonte de informação a Pesquisa de Orçamentos Familiares - POF. O IPCA tem sido utilizado pelo Banco Central do Brasil como principal parâmetro de monitoramento do sistema de metas de inflação desde a implementação do sistema no ano de 1999.
+
+## ETAPA 1 – Importando os dados
+
+
+## carregando pacotes do R que serão usados
+
+```{r}
+install.packages(c(
+  "readxl",
+  "dplyr",
+  "ggplot2",
+  "forecast",
+  "tseries",
+  "urca",
+  "lmtest"
+))
+```
+
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(urca)
+library(lmtest)
+```
+
+```{r}
+ipca <- read_excel("ipca.xls",
+                   sheet = "Séries")
+```
+
+
+```{r}
+head(ipca)
+```
+
+```{r}
+tail(ipca)
+```
+
+### Verificando a estrutura. Antes de qualquer modelagem devemos verificar se os dados foram importados corretamente.
+
+```{r}
+str(ipca)
+```
+```{r}
+summary(ipca)
+```
+### Criando uma variável de data
+
+```{r}
+library(zoo)
+
+ipca$data <- as.yearmon(
+  as.character(ipca$Data),
+  "%Y.%m"
+)
+
+head(ipca)
+```
+
+### Criando a série temporal completa
+
+```{r}
+serie_total <- ts(
+  ipca$IPCA,
+  start = c(1980,12),
+  frequency = 12
+)
+```
+
+### Gráfico da série completa: Inflação muito elevada nos anos 80; Período hiperinflacionário; Forte queda após o Plano Real;Regime de metas de inflação. 
+
+```{r}
+autoplot(serie_total)+
+  ggtitle("IPCA acumulado em 12 meses (%)")+
+  xlab("")+
+  ylab("%")
+```
+
+
+## ETAPA 2 – Filtrando a partir de 2010
+
+```{r}
+ipca_2010 <- ipca %>%
+  filter(data >= as.yearmon("2010-01"))
+```
+
+## Conferindo
+
+```{r}
+head(ipca_2010)
+
+tail(ipca_2010)
+
+nrow(ipca_2010)
+```
+
+## Criando a nova série temporal
+
+```{r}
+serie <- ts(
+  ipca_2010$IPCA,
+  start = c(2010,1),
+  frequency = 12
+)
+```
+
+## Visualizando novamente
+
+```{r}
+autoplot(serie)+
+  ggtitle("IPCA acumulado em 12 meses (2010-2026)")
+```
+
+
+## Exibindo os dados
+
+```{r}
+data.frame(
+  Data = ipca_2010$data,
+  IPCA = ipca_2010$IPCA
+)
+```
+
+
+### Análise Exploratória dos Dados
+
+## Estatísticas Descritivas
+
+```{r}
+summary(serie)
+```
+
+## Estatísticas mais detalhadas
+
+```{r}
+media <- mean(serie)
+
+mediana <- median(serie)
+
+desvio_padrao <- sd(serie)
+
+variancia <- var(serie)
+
+minimo <- min(serie)
+
+maximo <- max(serie)
+
+amplitude <- maximo - minimo
+
+estatisticas <- data.frame(
+  Média = media,
+  Mediana = mediana,
+  Desvio_Padrão = desvio_padrao,
+  Variância = variancia,
+  Mínimo = minimo,
+  Máximo = maximo,
+  Amplitude = amplitude
+)
+
+estatisticas
+```
+
+## Coeficiente de Variação. O coeficiente de variação indica o grau de dispersão relativa dos dados em relação à média. Quanto maior o CV, mais instável é o comportamento da série.
+
+```{r}
+cv <- sd(serie)/mean(serie)*100
+
+cv
+```
+## Histograma
+
+```{r}
+hist(
+  serie,
+  breaks = 15,
+  col = "lightblue",
+  main = "Histograma do IPCA",
+  xlab = "IPCA (%)"
+)
+```
+
+## Versão mais elegante usando o pacote ggplot2
+```{r}
+dados <- data.frame(IPCA=as.numeric(serie))
+
+ggplot(dados,
+       aes(IPCA))+
+  geom_histogram(
+    bins=15,
+    fill="steelblue",
+    color="black"
+  )+
+  theme_minimal()
+```
+
+## Densidade (Complementando o histograma.)
+
+```{r}
+plot(
+  density(serie),
+  lwd=2,
+  main="Densidade do IPCA"
+)
+```
+
+## Boxplot (Muito útil para identificar outliers.)
+
+```{r}
+boxplot(
+  serie,
+  col="orange",
+  main="Boxplot do IPCA"
+)
+```
+
+### Versão ggplot
+
+```{r}
+ggplot(
+  dados,
+  aes(y=IPCA)
+)+
+  geom_boxplot(
+    fill="orange"
+  )+
+  theme_minimal()
+```
+
+
+## Identificando Outliers. Se aparecerem valores extremos: Nem sempre devemos removê-los. Em séries econômicas: Crises, Pandemia, Choques de oferta, Mudanças cambiais podem gerar observações extremas que fazem parte do fenômeno econômico.
+
+```{r}
+boxplot.stats(serie)$out
+```
+
+## Assimetria. 0 → simétrica, > 0 → cauda à direita < 0 → cauda à esquerda
+
+```{r}
+install.packages("moments")
+library(moments)
+
+skewness(serie)
+```
+
+# Curtose. Curtose > 3 → caudas pesadas, Curtose ≈ 3 → normal, Curtose < 3 → distribuição achatada
+
+
+```{r}
+kurtosis(serie)
+```
+
+### Agora vamos para uma das partes mais importantes da análise de séries temporais: a decomposição da série. O objetivo é separar a série observada em componentes para entender melhor sua dinâmica.
+
+## Decomposição da Série Temporal
+
+# Visualizando a Série Novamente. Antes da decomposição:
+
+```{r}
+autoplot(serie)+
+  ggtitle("IPCA acumulado em 12 meses")
+```
+
+# Decomposição Clássica. Método tradicional. 
+
+
+```{r}
+decomp <- decompose(serie)
+
+plot(decomp)
+```
+
+## Decomposição STL. É o procedimento mais utilizado atualmente.
+
+```{r}
+decomp_stl <- stl(
+  serie,
+  s.window = "periodic"
+)
+
+plot(decomp_stl)
+```
+
+## Testes Formais
+
+# Teste de Tendência. Vamos verificar se existe tendência determinística na série.
+
+##Criamos uma variável tempo. Decisão Se: p-value < 0.05. Concluímos:Existe tendência estatisticamente significativa.
+
+```{r}
+tempo <- 1:length(serie)
+
+modelo_tend <- lm(
+  serie ~ tempo
+)
+
+summary(modelo_tend)
+```
+
+# Teste de Sazonalidade via Dummies
+
+## Criamos dummies mensais.
+
+```{r}
+mes <- factor(cycle(serie))
+```
+
+## Modelo
+
+```{r}
+modelo_saz <- lm(
+  serie ~ mes
+)
+
+summary(modelo_saz)
+```
+## Teste F Global. Decisão Se: p-value < 0.05 Concluímos: Existe sazonalidade significativa.
+
+```{r}
+anova(modelo_saz)
+```
+
+# Modelo com Tendência + Sazonalidade
+
+```{r}
+modelo_ts <- lm(
+  serie ~ tempo + mes
+)
+
+summary(modelo_ts)
+```
+# Teste de estacionariedade
+
+## Teste Dickey-Fuller Aumentado (ADF). Hipóteses H0: A série possui raiz unitária.Não estacionária. H1. A série é estacionária.
+
+```{r}
+library(tseries)
+
+adf.test(serie)
+```
+
+## Teste KPSS. Hipóteses. H0: A série é estacionária.H1 A série não é estacionária.
+
+```{r}
+kpss.test(serie)
+```
+
+# Phillips-Perron (PP). H0: Possui raiz unitária.H1 É estacionária.
+
+```{r}
+pp.test(serie)
+```
+# Resumo dos Testes. O ADF e o PP indicam evidências de raiz unitária (não estacionariedade), pois não rejeitam H₀. O KPSS não rejeitou estacionariedade, gerando um resultado inconclusivo. Na metodologia Box-Jenkins, quando há dúvida, observamos também: gráfico da série; decomposição; ACF; PACF. Como o IPCA acumulado em 12 meses possui forte persistência temporal, vamos prosseguir assumindo inicialmente que a série necessita de diferenciação e verificar se a estacionariedade melhora.
+
+```{r}
+resultado_testes <- data.frame(
+  Teste = c("ADF","KPSS","PP"),
+  pvalor = c(
+    adf.test(serie)$p.value,
+    kpss.test(serie)$p.value,
+    pp.test(serie)$p.value
+  )
+)
+
+resultado_testes
+```
+
+# Tratamento da Série
+
+## Primeira Diferença
+
+```{r}
+serie_d1 <- diff(serie)
+
+head(serie_d1)
+```
+## Visualizando a Série Diferenciada. oscila em torno de uma média aproximadamente constante; reduzimos tendência e persistência.
+
+```{r}
+autoplot(serie_d1)+
+  ggtitle("IPCA após Primeira Diferença")
+```
+
+# Estatísticas Descritivas da Série Diferenciada
+
+```{r}
+summary(serie_d1)
+
+mean(serie_d1)
+
+sd(serie_d1)
+```
+
+# Novos Testes de Estacionariedade
+
+## ADF
+
+```{r}
+adf.test(serie_d1)
+```
+
+## KPSS
+
+```{r}
+kpss.test(serie_d1)
+```
+
+# Phillips-Perron. A série tornou-se estacionária após uma diferença. Nesse caso: d=1 na modelagem ARIMA.
+
+```{r}
+pp.test(serie_d1)
+```
+
+# Visualizando Antes e Depois
+
+```{r}
+par(mfrow=c(2,1))
+
+plot(
+  serie,
+  main="Série Original"
+)
+
+plot(
+  serie_d1,
+  main="Primeira Diferença"
+)
+```
+
+
+# Próximo Passo Fundamental. Após confirmar a estacionariedade da série diferenciada, faremos: Identificação do Modelo
+
+## Função de Autocorrelação (ACF). Agora vamos observar como a autocorrelação se comporta ao longo do tempo. O que observamos: Lag 1 Existe um pico positivo forte. Lags seguintes A autocorrelação vai diminuindo gradualmente.Não existe corte abrupto. Interpretação Box-Jenkins Quando a ACF: decai gradualmente; não corta rapidamente; isso sugere presença de componente autorregressivo (AR).
+
+```{r}
+Acf(
+  serie_d1,
+  lag.max=36
+)
+```
+
+# Função de Autocorrelação Parcial (PACF). Agora observamos a PACF. O que aparece? Lag 1 Pico significativo. Lags posteriores Próximos de zero. Há alguns picos isolados mais adiante, mas pequenos. Interpretação Box-Jenkins A PACF parece: cortar praticamente no lag 1. Esse comportamento é clássico de: AR(1)
+
+```{r}
+Pacf(
+  serie_d1,
+  lag.max=36
+)
+```
+
+
+##### O que a ACF e PACF estão sugerindo? Hipótese 1 ARIMA(1,1,0) Porque: PACF corta no lag 1; ACF decai lentamente. Hipótese 2 ARIMA(2,1,0) Porque existe um pequeno segundo pico. Hipótese 3 ARIMA(1,1,1) Modelo mais flexível. Hipótese 4 ARIMA(0,1,1) Sempre vale testar para comparação.
+
+
+##### Após tornar a série estacionária por meio da primeira diferença, verificamos que os testes ADF, KPSS e Phillips-Perron concordam quanto à estacionariedade da série. A análise da ACF mostra um decaimento gradual das autocorrelações, enquanto a PACF apresenta um corte aproximadamente no primeiro lag. Esse padrão é compatível com um processo autorregressivo de primeira ordem, indicando que modelos como ARIMA(1,1,0), ARIMA(2,1,0), ARIMA(0,1,1) e ARIMA(1,1,1) devem ser considerados candidatos iniciais. Além disso, como a série é mensal, também investigaremos possíveis modelos sazonais SARIMA.
+
+
+# Estimação dos Modelos Candidatos. Agora vamos estimar os modelos candidatos e escolher o melhor. 
+
+# Divisão Treino e Teste. Primeiro vamos separar a amostra. Usaremos os últimos 12 meses para teste.O modelo será estimado apenas com os dados históricos (treino). Depois verificaremos se ele consegue prever corretamente os valores que ficaram fora da estimação (teste).
+
+```{r}
+n <- length(serie)
+
+treino <- head(
+  serie,
+  n - 12
+)
+
+teste <- tail(
+  serie,
+  12
+)
+
+length(treino)
+
+length(teste)
+```
+
+## Visualização
+
+```{r}
+autoplot(treino)+
+  autolayer(
+    teste,
+    series="Teste"
+  )
+```
+
+# Estimando ARIMA(1,1,0)
+
+```{r}
+m1 <- Arima(
+  treino,
+  order=c(1,1,0)
+)
+
+summary(m1)
+```
+# Estimando ARIMA(2,1,0)
+```{r}
+m2 <- Arima(
+  treino,
+  order=c(2,1,0)
+)
+
+summary(m2)
+```
+#Estimando ARIMA(0,1,1)
+```{r}
+m3 <- Arima(
+  treino,
+  order=c(0,1,1)
+)
+
+summary(m3)
+```
+# Estimando ARIMA(1,1,1)
+```{r}
+m4 <- Arima(
+  treino,
+  order=c(1,1,1)
+)
+
+summary(m4)
+```
+
+# Estimando ARIMA(2,1,1)
+
+```{r}
+m5 <- Arima(
+  treino,
+  order=c(2,1,1)
+)
+
+summary(m5)
+```
+
+# Auto ARIMA. Agora deixamos o algoritmo escolher.O auto.arima testa centenas de especificações e escolhe aquela que minimiza critérios de informação como AIC, AICc e BIC.
+
+```{r}
+m6 <- auto.arima(
+  treino
+)
+
+summary(m6)
+```
+
+# Comparando os Modelos
+
+```{r}
+comparacao <- data.frame(
+
+Modelo = c(
+"ARIMA(1,1,0)",
+"ARIMA(2,1,0)",
+"ARIMA(0,1,1)",
+"ARIMA(1,1,1)",
+"ARIMA(2,1,1)",
+"Auto ARIMA"
+),
+
+AIC = c(
+AIC(m1),
+AIC(m2),
+AIC(m3),
+AIC(m4),
+AIC(m5),
+AIC(m6)
+),
+
+BIC = c(
+BIC(m1),
+BIC(m2),
+BIC(m3),
+BIC(m4),
+BIC(m5),
+BIC(m6)
+)
+
+)
+
+comparacao
+```
+
+# Conclusão. O Auto ARIMA encontrou um modelo muito superior aos modelos candidatos inicialmente sugeridos pela ACF e PACF. Isso acontece porque: ACF e PACF são apenas ferramentas de identificação inicial; O algoritmo explora um conjunto muito maior de modelos; Pode identificar componentes sazonais não percebidos visualmente.Mesmo assim vamos continuar com o modelo escolhido manualmente.
+
+# Embora o Auto ARIMA tenha encontrado um modelo com AIC muito menor, em um curso introdutório é muito mais importante que os alunos compreendam toda a lógica da metodologia Box-Jenkins utilizando um modelo simples e facilmente interpretável.
+
+
+#Diagnóstico do ARIMA(1,1,0)
+
+```{r}
+summary(m1)
+```
+
+#Gráfico Completo. Gráfico dos resíduos Desejamos: média próxima de zero;ausência de tendência; ausência de padrão. Histograma Desejamos:formato aproximadamente normal. ACF dos resíduos Desejamos: todas as barras dentro dos limites. Isso indica: Ausência de autocorrelação residual.
+```{r}
+checkresiduals(m1)
+```
+
+# Teste de Ljung-Box. Hipóteses H0: Os resíduos são ruído branco. H1: Os resíduos possuem autocorrelação. Interpretação Se: p > 0.05 Conclusão: O modelo é adequado.
+
+```{r}
+Box.test(
+  residuals(m1),
+  lag=24,
+  type="Ljung"
+)
+```
+
+# Previsão Fora da Amostra. Agora vamos avaliar a capacidade preditiva.
+
+# Gerando Previsões
+
+```{r}
+prev_m1 <- forecast(
+  m1,
+  h=12
+)
+```
+
+# Visualizando
+
+```{r}
+autoplot(prev_m1)+
+  autolayer(
+    teste,
+    series="Observado"
+  )
+```
+
+# Comparação Numérica
+
+```{r}
+comparacao <- data.frame(
+  Real = as.numeric(teste),
+  Previsto = as.numeric(prev_m1$mean)
+)
+
+comparacao
+```
+
+
+#Avaliação da Previsão. Agora vamos medir o erro.
+
+# MAE. Erro Absoluto Médio
+
+```{r}
+library(Metrics)
+
+mae(
+  teste,
+  prev_m1$mean
+)
+```
+
+# MSE. Erro Quadrático Médio
+
+```{r}
+mse(
+  teste,
+  prev_m1$mean
+)
+```
+
+# RMSE
+
+```{r}
+rmse(
+  teste,
+  prev_m1$mean
+)
+```
+# MAPE. O mais utilizado em Economia. Interpretação MAPE	Qualidade. < 10%	Excelente, 10% - 20%	Boa, 20% - 50%	Aceitável e > 50%	Ruim
+
+```{r}
+mape(
+  teste,
+  prev_m1$mean
+)*100
+```
+# Previsão Final.Agora utilizaremos toda a amostra.
+
+# Reestimando
+
+```{r}
+modelo_final <- Arima(
+  serie,
+  order=c(1,1,0)
+)
+```
+
+# Previsão para os Próximos 6 Meses
+
+```{r}
+prev6 <- forecast(
+  modelo_final,
+  h=6
+)
+
+prev6
+```
+
+
+# Gráfico
+
+```{r}
+autoplot(prev6)+
+  ggtitle(
+    "Previsão do IPCA para os próximos 6 meses"
+  )
+```
+
+
+### Aplicamos toda a metodologia Box-Jenkins: análise exploratória, decomposição, testes de estacionariedade, diferenciação, identificação via ACF e PACF, estimação do modelo ARIMA, diagnóstico dos resíduos e avaliação preditiva. Finalmente, utilizamos o modelo ajustado para gerar previsões futuras do IPCA, que podem auxiliar na tomada de decisões econômicas, financeiras e de política monetária.
+
+# agora vamos trabalhar com modelo do auto arima
+
+
+
+#Resumo do Modelo
+
+```{r}
+summary(m6)
+```
+#Diagnóstico Gráfico
+
+```{r}
+checkresiduals(m6)
+```
+
+
+#Teste de Ljung-Box
+
+```{r}
+Box.test(
+  residuals(m6),
+  lag = 24,
+  type = "Ljung"
+)
+```
+
+# Previsão Fora da Amostra. Agora vamos utilizar os 12 meses reservados para teste.
+
+#Gerar Previsões
+```{r}
+prev_auto <- forecast(
+  m6,
+  h = 12
+)
+```
+
+# Visualizar
+
+```{r}
+prev_auto
+```
+
+# Gráfico
+
+```{r}
+autoplot(prev_auto)+
+  autolayer(
+    teste,
+    series = "Observado"
+  )+
+  ggtitle(
+    "Previsão Fora da Amostra"
+  )
+```
+
+# Comparação Numérica
+
+```{r}
+comparacao <- data.frame(
+
+Data =
+time(teste),
+
+Real =
+as.numeric(teste),
+
+Previsto =
+as.numeric(prev_auto$mean)
+
+)
+
+comparacao
+```
+
+# Erro de Previsão
+
+```{r}
+comparacao$Erro <-
+comparacao$Real -
+comparacao$Previsto
+
+comparacao
+```
+
+# Avaliação da Qualidade da Previsão
+
+#MAE
+```{r}
+mae(
+  teste,
+  prev_auto$mean
+)
+```
+#MSE
+```{r}
+mse(
+  teste,
+  prev_auto$mean
+)
+```
+
+#RMSE
+
+```{r}
+rmse(
+  teste,
+  prev_auto$mean
+)
+```
+MAPE
+```{r}
+mape(
+  teste,
+  prev_auto$mean
+)*100
+```
+#previsão final. Agora utilizamos toda a amostra.
+
+#Reestimar
+```{r}
+modelo_final <- auto.arima(
+  serie
+)
+
+summary(
+  modelo_final
+)
+```
+
+# Previsão para 6 meses
+
+```{r}
+prev6 <- forecast(
+  modelo_final,
+  h = 6
+)
+
+prev6
+```
+
+
+#Gráfico Final
+
+```{r}
+autoplot(prev6)+
+  ggtitle(
+    "Previsão do IPCA para os próximos 6 meses"
+  )
+```
+
+
+# Trabalhando agora com os dados do PIB
+
+
+# Importar os dados
+
+```{r}
+library(readxl)
+
+pib <- read_excel(
+  "pib.xls",
+  sheet="Séries"
+)
+
+head(pib)
+```
+
+# Transformar para Numérico
+
+```{r}
+str(pib)
+```
+```{r}
+pib$PIB <- as.numeric(pib$PIB)
+```
+
+
+# Criar a série trimestral
+
+```{r}
+pib_ts <- ts(
+  pib$PIB,
+  start=c(2002,1),
+  frequency=4
+)
+```
+
+#Visualizar PIB
+```{r}
+autoplot(pib_ts)+
+  ggtitle("PIB Trimestral")
+```
+
+# Aplicar logaritmo. Nesta etapa já devemos observar uma redução significativa da variância.O log comprime a escala. Diferenças passam a representar taxas de crescimento.
+
+```{r}
+pib_log <- log(pib_ts)
+
+autoplot(pib_log)+
+  ggtitle("Logaritmo do PIB")
+```
+
+# Estatísticas Descritivas
+
+```{r}
+summary(pib_log)
+
+mean(pib_log)
+
+sd(pib_log)
+
+var(pib_log)
+```
+
+#Decomposição
+
+```{r}
+decomp <- stl(
+  pib_log,
+  s.window="periodic"
+)
+
+plot(decomp)
+```
+
+#Teste de Tendência
+```{r}
+tempo <- 1:length(pib_log)
+
+summary(
+  lm(pib_log ~ tempo)
+)
+```
+
+# Teste de Sazonalidade
+
+```{r}
+tri <- factor(cycle(pib_log))
+
+summary(
+  lm(pib_log ~ tri)
+)
+```
+
+# Estacionariedade
+
+# ADF
+```{r}
+adf.test(pib_log)
+```
+#KPSS
+```{r}
+kpss.test(pib_log)
+```
+#PP
+```{r}
+pp.test(pib_log)
+```
+
+#Primeira Diferença:Taxa de crescimento trimestral do PIB.
+
+```{r}
+pib_d1 <- diff(pib_log)
+```
+
+#Visualização
+
+```{r}
+autoplot(pib_d1)
+```
+
+# Novos Testes
+
+```{r}
+adf.test(pib_d1)
+
+kpss.test(pib_d1)
+
+pp.test(pib_d1)
+```
+
+#ACF
+
+```{r}
+Acf(
+  pib_d1,
+  lag.max=20
+)
+```
+
+#PACF
+
+```{r}
+Pacf(
+  pib_d1,
+  lag.max=20
+)
+```
+
+
+#Após a primeira diferença do log do PIB: A ACF apresenta: autocorrelações negativas nos primeiros lags; um pico muito forte no lag 4; novos picos em 8, 12, 16 e 20.O que isso sugere? Como o PIB é trimestral: lag 4 = 1 ano, lag 8 = 2 anos, lag 12 = 3 anos. A presença desses picos é uma evidência muito forte de: sazonalidade trimestral.O que vemos na PACF?
+
+#Na PACF: pico negativo nos primeiros lags; pico muito forte no lag 4; um pequeno pico no lag 8. Interpretação. Isso reforça a existência de uma componente sazonal. Ou seja: SARIMA faz mais sentido do que um ARIMA simples.
+
+# O que a primeira diferença já nos mostrou? Os testes indicaram: stacionária após uma diferença Portanto: d=1
+
+# Modelo 1 ARIMA(0,1,0)(1,0,0)4 .Racional: PACF mostra pico sazonal forte no lag 4; comportamento típico de SAR(1).
+
+#A ACF apresenta picos sistemáticos nos múltiplos de 4 períodos, indicando uma forte componente sazonal anual em uma série trimestral. A PACF confirma essa evidência ao apresentar um pico significativo no lag 4. Como a série tornou-se estacionária após uma diferença, temos d=1. Portanto, os modelos candidatos mais naturais são modelos SARIMA com período sazonal igual a 4, incorporando componentes autorregressivas ou de médias móveis sazonais.
+
+```{r}
+m1 <- Arima(
+  pib_log,
+  order=c(0,1,0),
+  seasonal=list(
+    order=c(1,0,0),
+    period=4
+  )
+)
+```
+
+### Modelo 2. ARIMA(0,1,0)(0,0,1)4.Porque a ACF apresenta forte pico sazonal.
+
+```{r}
+m2 <- Arima(
+  pib_log,
+  order=c(0,1,0),
+  seasonal=list(
+    order=c(0,0,1),
+    period=4
+  )
+)
+```
+
+
+#Modelo 3. ARIMA(1,1,0)(1,0,0)4.Porque existe alguma dependência nos primeiros lags.
+
+```{r}
+m3 <- Arima(
+  pib_log,
+  order=c(1,1,0),
+  seasonal=list(
+    order=c(1,0,0),
+    period=4
+  )
+)
+```
+
+
+# Modelo 4 ARIMA(0,1,1)(0,0,1) 4
+
+```{r}
+m4 <- Arima(
+  pib_log,
+  order=c(0,1,1),
+  seasonal=list(
+    order=c(0,0,1),
+    period=4
+  )
+)
+```
+
+#Modelo 5. Modelo clássico para PIB. ARIMA(1,1,1)(1,0,1)4
+
+```{r}
+m5 <- Arima(
+  pib_log,
+  order=c(1,1,1),
+  seasonal=list(
+    order=c(1,0,1),
+    period=4
+  )
+)
+```
+
+#auto arima
+
+```{r}
+auto.arima(
+  pib_log,
+  seasonal=TRUE
+)
+```
+```{r}
+auto.arima(
+  pib_log,
+  seasonal=FALSE
+)
+```
+
+# Comparação dos modelos
+
+```{r}
+comparacao <- data.frame(
+
+Modelo=c(
+"SARIMA(1,0,0)",
+"SARIMA(0,0,1)",
+"ARIMA(1,1,0)(1,0,0)",
+"ARIMA(0,1,1)(0,0,1)",
+"ARIMA(1,1,1)(1,0,1)"
+),
+
+AIC=c(
+AIC(m1),
+AIC(m2),
+AIC(m3),
+AIC(m4),
+AIC(m5)
+)
+
+)
+
+comparacao[
+order(comparacao$AIC),
+]
+```
+
+#Interpretação. A diferença é grande. Por exemplo: −435.22−(−418.64)=−16.58. Diferenças superiores a 10 pontos de AIC normalmente já representam evidência muito forte a favor do melhor modelo. Portanto: ARIMA(1,1,1)(1,0,1) 4 é claramente o vencedor. O que isso nos diz economicamente? O crescimento do PIB depende de: Curto Prazo um componente AR(1) e um componente MA(1). Longo Prazo (sazonal) um AR sazonal e um MA sazonal com periodicidade: trimestral
+
+
+#Diagnóstico dos Resíduos
+
+```{r}
+summary(m5)
+```
+#Diagnóstico gráfico:
+```{r}
+checkresiduals(m5)
+```
+
+#Teste de Ljung-Box
+
+```{r}
+Box.test(
+  residuals(m5),
+  lag=12,
+  type="Ljung"
+)
+```
+
+# Validação Fora da Amostra Separar: 8 trimestres para teste
+
+```{r}
+n <- length(pib_log)
+
+treino <- head(
+  pib_log,
+  n-8
+)
+
+teste <- tail(
+  pib_log,
+  8
+)
+```
+
+# Reestimar:
+
+```{r}
+m_final <- Arima(
+  treino,
+  order=c(1,1,1),
+  seasonal=list(
+    order=c(1,0,1),
+    period=4
+  )
+)
+```
+
+# Gerar previsão:
+
+```{r}
+prev <- forecast(
+  m_final,
+  h=8
+)
+```
+
+# Gráfico da Previsão Fora da Amostra
+
+```{r}
+prev <- forecast(
+  m_final,
+  h = 8
+)
+
+autoplot(prev)+
+  autolayer(
+    teste,
+    series = "Observado"
+  )+
+  ggtitle(
+    "PIB Trimestral: Valores Observados e Previstos"
+  )+
+  xlab("")+
+  ylab("Log PIB")
+```
+
+#Gráfico Real versus Previsto
+
+
+```{r}
+comparacao <- data.frame(
+  Trimestre = time(teste),
+  Real = as.numeric(teste),
+  Previsto = as.numeric(prev$mean)
+)
+
+library(ggplot2)
+
+ggplot(comparacao)+
+
+  geom_line(
+    aes(
+      x = Trimestre,
+      y = Real,
+      colour = "Real"
+    ),
+    linewidth=1.2
+  )+
+
+  geom_line(
+    aes(
+      x = Trimestre,
+      y = Previsto,
+      colour = "Previsto"
+    ),
+    linewidth=1.2
+  )+
+
+  labs(
+    title="PIB: Real versus Previsto",
+    x="Trimestre",
+    y="Log PIB"
+  )
+```
+
+# avaliação da previsão
+
+```{r}
+library(Metrics)
+mae(
+  teste,
+  prev$mean
+)
+
+rmse(
+  teste,
+  prev$mean
+)
+
+mape(
+  teste,
+  prev$mean
+)*100
+```
+
+# Reestimamos o modelo usando toda a amostra
+
+```{r}
+modelo_final <- Arima(
+  pib_log,
+  order=c(1,1,1),
+  seasonal=list(
+    order=c(1,0,1),
+    period=4
+  )
+)
+```
+
+# Previsão dos próximos 6 trimestres
+
+```{r}
+forecast_6 <- forecast(
+  modelo_final,
+  h=6
+)
+```
+
+# Gráfico Final da Previsão
+
+```{r}
+autoplot(
+  forecast_6
+)+
+ggtitle(
+  "Previsão do PIB para os Próximos 6 Trimestres"
+)
+```
+
+
+```{r}
+install.packages(c(
+  "forecast",
+  "tseries",
+  "urca",
+  "ggplot2",
+  "tsibble",
+  "fpp3",
+  "Metrics",
+  "lmtest",
+  "trend"
+))
+
+library(forecast)
+library(tseries)
+library(urca)
+library(ggplot2)
+library(tsibble)
+library(fpp3)
+library(Metrics)
+library(lmtest)
+library(trend)
+```
+
+```{r}
+set.seed(123)
+
+vendas <- ts(
+  100 +
+    0.5*(1:120) +
+    20*sin(2*pi*(1:120)/12) +
+    rnorm(120,0,10),
+  start = c(2015,1),
+  frequency = 12
+)
+
+plot(vendas)
+```
+```{r}
+summary(vendas)
+
+mean(vendas)
+sd(vendas)
+var(vendas)
+```
+```{r}
+autoplot(vendas) +
+  ggtitle("Série Temporal")
+```
+
+
+
+
+```{r}
+tempo <- 1:length(vendas)
+
+modelo_tend <- lm(vendas ~ tempo)
+
+summary(modelo_tend)
+```
+
+
+
+```{r}
+mk.test(vendas)
+```
+```{r}
+fit <- tslm(vendas ~ trend + season)
+
+summary(fit)
+```
+
+
+```{r}
+monthplot(vendas)
+```
+
+
+```{r}
+dec_ad <- decompose(vendas)
+
+plot(dec_ad)
+```
+
+
+```{r}
+dec_stl <- stl(vendas,
+               s.window = "periodic")
+
+plot(dec_stl)
+```
+
+
+```{r}
+n <- length(vendas)
+
+treino <- window(vendas,
+                 end=c(2022,12))
+
+teste <- window(vendas,
+                start=c(2023,1))
+```
+
+
+```{r}
+adf.test(treino)
+```
+
+```{r}
+kpss.test(treino)
+```
+
+
+
+```{r}
+d1 <- diff(treino)
+
+plot(d1)
+
+adf.test(d1)
+```
+
+```{r}
+Acf(d1)
+```
+
+
+
+
+```{r}
+Pacf(d1)
+```
+
+
+```{r}
+arima111 <- Arima(
+  treino,
+  order=c(1,1,1)
+)
+
+summary(arima111)
+```
+
+
+```{r}
+arima212 <- Arima(
+  treino,
+  order=c(2,1,2)
+)
+
+summary(arima212)
+```
+
+```{r}
+arima311 <- Arima(
+  treino,
+  order=c(3,1,1)
+)
+
+summary(arima311)
+```
+
+
+```{r}
+auto_arima <- auto.arima(
+  treino
+)
+
+summary(auto_arima)
+```
+
+
+```{r}
+sarima <- Arima(
+  treino,
+  order=c(1,1,1),
+  seasonal=
+    list(order=c(1,1,1),
+         period=12)
+)
+
+summary(sarima)
+```
+
+
+```{r}
+auto_sarima <- auto.arima(
+  treino,
+  seasonal=TRUE
+)
+
+summary(auto_sarima)
+```
+
+```{r}
+AIC(arima111)
+
+AIC(arima212)
+
+AIC(auto_arima)
+
+AIC(sarima)
+
+AIC(auto_sarima)
+```
+
+```{r}
+checkresiduals(auto_sarima)
+```
+
+
+```{r}
+Box.test(
+  residuals(auto_sarima),
+  lag=24,
+  type="Ljung"
+)
+```
+
+```{r}
+prev_sarima <- forecast(
+  auto_sarima,
+  h=length(teste)
+)
+
+autoplot(prev_sarima)
+```
+
+
+
+```{r}
+autoplot(prev_sarima)+
+  autolayer(teste,
+            series="Real")
+```
+
+
+```{r}
+pred <- as.numeric(
+  prev_sarima$mean
+)
+
+real <- as.numeric(
+  teste
+)
+```
+
+
+```{r}
+mae(real,pred)
+```
+
+```{r}
+mse(real,pred)
+```
+
+```{r}
+rmse(real,pred)
+```
+
+```{r}
+mape(real,pred)*100
+```
+
+
+```{r}
+forecast_12 <- forecast(
+  auto_sarima,
+  h=12
+)
+
+autoplot(forecast_12)
+```
+
+# Modelo AR (1)
+
+## Um processo autorregressivo é aquele em que o valor atual da série depende de seus próprios valores passados.
+
+
+### Simulando um AR(1) 
+```{r}
+set.seed(123)
+
+serie_ar1 <- arima.sim(
+  model = list(ar = 0.8),
+  n = 200
+)
+
+plot(
+  serie_ar1,
+  type = "l",
+  main = "Processo AR(1)"
+)
+```
+
+
+
+```{r}
+model = list(ar = 0.8)
+```
+
+
+### Visualizando a Série
+
+# Ao observar o gráfico, normalmente percebemos: movimentos suaves; persistência temporal; períodos de alta seguidos de alta; períodos de baixa seguidos de baixa.
+
+```{r}
+ts.plot(
+  serie_ar1,
+  col="blue",
+  lwd=2,
+  ylab="Y",
+  main="Série AR(1)"
+)
+```
+
+### ACF do AR(1). Interpretação: correlação alta no lag 1; correlação vai diminuindo gradualmente; decaimento exponencial. Esse é o principal comportamento teórico de um AR(1).
+
+
+```{r}
+acf(serie_ar1)
+```
+
+
+### PACF do AR(1). Resultado esperado: pico significativo apenas no lag 1; demais lags próximos de zero. Essa é a "assinatura" de um AR(1).
+
+```{r}
+pacf(serie_ar1)
+```
+
+
+### Estimando o Modelo. Agora vamos fingir que não sabemos que a série é AR(1).
+
+
+```{r}
+modelo_ar1 <- arima(
+  serie_ar1,
+  order = c(1,0,0)
+)
+
+modelo_ar1
+```
+
+```{r}
+library(forecast)
+
+modelo_ar1 <- Arima(
+  serie_ar1,
+  order = c(1,0,0)
+)
+
+summary(modelo_ar1)
+```
+
+
+
