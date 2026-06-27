@@ -1,1 +1,5 @@
 *.Rmd linguist-language=R
+*.rmd linguist-language=R
+
+*.html linguist-documentation
+*.htm linguist-documentation
